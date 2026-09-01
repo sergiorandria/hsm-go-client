@@ -1,6 +1,6 @@
-module github.com/sergio/hsm-go-client
+module github.com/sergiorandria/hsm-go-client
 
-go 1.21
+go 1.22
 
 require github.com/stretchr/testify v1.8.4
 

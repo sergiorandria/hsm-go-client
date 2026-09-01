@@ -1,4 +1,4 @@
-.PHONY: test build clean help bench lint fmt
+.PHONY: test build clean help bench lint fmt vet
 
 help:
 	@echo "HSM Go Client - Available targets:"
@@ -10,11 +10,12 @@ help:
 	@echo "  clean      - Clean build artifacts"
 
 test:
-	go test -v ./...
+	go test -race -v ./hsm/...
 
 test-coverage:
-	go test -v -coverprofile=coverage.out ./...
+	go test -race -coverprofile=coverage.out ./hsm/...
 	go tool cover -html=coverage.out -o coverage.html
+	@echo "coverage: coverage.html"
 
 bench:
 	go test -bench=. -benchmem ./hsm
@@ -35,6 +36,9 @@ lint:
 
 fmt:
 	go fmt ./...
+
+vet:
+	go vet ./hsm/...
 
 clean:
 	rm -f examples/basic_sign examples/batch_signing examples/key_management

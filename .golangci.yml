@@ -1,0 +1,25 @@
+version: "2"
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - revive
+  settings:
+    govet:
+      enable-all: true
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes: github.com/sergiorandria/hsm-go-client

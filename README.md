@@ -1,5 +1,10 @@
 # HSM Go Client
 
+[![CI](https://github.com/sergiorandria/hsm-go-client/actions/workflows/ci.yml/badge.svg)](https://github.com/sergiorandria/hsm-go-client/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/sergiorandria/hsm-go-client.svg)](https://pkg.go.dev/github.com/sergiorandria/hsm-go-client)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/sergiorandria/hsm-go-client)](https://go.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A production-ready Go client library for interacting with the ESP32 HTTP-based HSM (Hardware Security Module).
 
 ## Features
@@ -15,7 +20,7 @@ A production-ready Go client library for interacting with the ESP32 HTTP-based H
 ## Installation
 
 ```bash
-go get github.com/sergio/hsm-go-client
+go get github.com/sergiorandria/hsm-go-client
 ```
 
 ## Quick Start
@@ -28,7 +33,7 @@ import (
     "context"
     "log"
     
-    "github.com/sergio/hsm-go-client/hsm"
+    "github.com/sergiorandria/hsm-go-client/hsm"
 )
 
 func main() {
@@ -233,8 +238,12 @@ client := hsm.NewClient(hsm.Config{
 
 ## License
 
-This project is part of the Virtual HSM (vHSM) system.
+MIT — see [LICENSE](LICENSE). Part of the Virtual HSM (vHSM) system.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, `make` targets, and PR guidelines.
 
 ## Support
 
-For issues or feature requests, refer to the main vHSM repository.
+For issues or feature requests, please [open an issue](https://github.com/sergiorandria/hsm-go-client/issues/new/choose).

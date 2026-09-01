@@ -51,7 +51,7 @@ hsm-go-client/
 
 ### Installation
 ```bash
-go get github.com/sergio/hsm-go-client
+go get github.com/sergiorandria/hsm-go-client
 ```
 
 ### Basic Usage

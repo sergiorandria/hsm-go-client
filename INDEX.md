@@ -114,7 +114,7 @@
 
 #### `go.mod`
 Go module definition with:
-- Module name: `github.com/sergio/hsm-go-client`
+- Module name: `github.com/sergiorandria/hsm-go-client`
 - Go version: 1.21
 - Test dependency: testify
 

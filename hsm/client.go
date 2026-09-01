@@ -206,7 +206,7 @@ func (c *Client) UploadEnd(ctx context.Context, filename string) (*UploadEndResp
 
 // UploadFile uploads a complete file by chunking it.
 func (c *Client) UploadFile(ctx context.Context, filename string, data io.Reader) error {
-	if err := c.UploadStart(ctx, filename); err != nil {
+	if _, err := c.UploadStart(ctx, filename); err != nil {
 		return fmt.Errorf("upload start: %w", err)
 	}
 

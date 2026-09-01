@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/sergio/hsm-go-client/hsm"
+	"github.com/sergiorandria/hsm-go-client/hsm"
 )
 
 // Example: Key management

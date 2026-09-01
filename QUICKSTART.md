@@ -5,7 +5,7 @@ Get up and running with the HSM Go client in 5 minutes.
 ## 1. Install the Library
 
 ```bash
-go get github.com/sergio/hsm-go-client
+go get github.com/sergiorandria/hsm-go-client
 ```
 
 ## 2. Create a Basic Program
@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/sergio/hsm-go-client/hsm"
+	"github.com/sergiorandria/hsm-go-client/hsm"
 )
 
 func main() {
@@ -215,7 +215,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/sergio/hsm-go-client/hsm"
+	"github.com/sergiorandria/hsm-go-client/hsm"
 )
 
 func main() {
@@ -267,7 +267,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/sergio/hsm-go-client/hsm"
+	"github.com/sergiorandria/hsm-go-client/hsm"
 )
 
 var hsmClient *hsm.Client

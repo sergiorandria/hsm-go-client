@@ -5,7 +5,7 @@ Complete guide to using the HSM Go client library with your ESP32 HSM.
 ## Installation
 
 ```bash
-go get github.com/sergio/hsm-go-client
+go get github.com/sergiorandria/hsm-go-client
 ```
 
 ## Basic Setup
@@ -15,7 +15,7 @@ package main
 
 import (
     "context"
-    "github.com/sergio/hsm-go-client/hsm"
+    "github.com/sergiorandria/hsm-go-client/hsm"
 )
 
 func main() {

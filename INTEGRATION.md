@@ -11,7 +11,7 @@ package main
 
 import (
     "context"
-    "github.com/sergio/hsm-go-client/hsm"
+    "github.com/sergiorandria/hsm-go-client/hsm"
 )
 
 type DocumentService struct {
@@ -53,7 +53,7 @@ package main
 import (
     "encoding/json"
     "net/http"
-    "github.com/sergio/hsm-go-client/hsm"
+    "github.com/sergiorandria/hsm-go-client/hsm"
 )
 
 type SignRequest struct {
@@ -111,7 +111,7 @@ package main
 import (
     "context"
     "flag"
-    "github.com/sergio/hsm-go-client/hsm"
+    "github.com/sergiorandria/hsm-go-client/hsm"
 )
 
 func main() {
@@ -219,7 +219,7 @@ func (c *SigningConsumer) ProcessSigningRequests(ctx context.Context) {
 package main
 
 import (
-    "github.com/sergio/hsm-go-client/hsm"
+    "github.com/sergiorandria/hsm-go-client/hsm"
     "sync"
 )
 

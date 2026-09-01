@@ -90,7 +90,7 @@ Total: 3220 lines of code + documentation
 
 ### Package Structure
 ```
-github.com/sergio/hsm-go-client/
+github.com/sergiorandria/hsm-go-client/
 ├── hsm/
 │   ├── client.go        → HTTP client & operations
 │   ├── types.go         → Request/response types
@@ -320,7 +320,7 @@ All files are ready to use immediately.
 
 ## 🚀 Next Steps for Users
 
-1. **Install**: `go get github.com/sergio/hsm-go-client`
+1. **Install**: `go get github.com/sergiorandria/hsm-go-client`
 2. **Read**: Start with `QUICKSTART.md`
 3. **Try**: Run an example
 4. **Build**: Follow an integration pattern

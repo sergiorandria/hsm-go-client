@@ -36,3 +36,5 @@ dist/
 examples/basic_sign
 examples/batch_signing
 examples/key_management
+coverage.html
+coverage.out

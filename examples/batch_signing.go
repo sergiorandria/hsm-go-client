@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/sergio/hsm-go-client/hsm"
+	"github.com/sergiorandria/hsm-go-client/hsm"
 )
 
 // Example: Batch signing multiple documents

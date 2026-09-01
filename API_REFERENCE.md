@@ -2,7 +2,7 @@
 
 Complete API reference for the HSM Go client library.
 
-## Package: `github.com/sergio/hsm-go-client/hsm`
+## Package: `github.com/sergiorandria/hsm-go-client/hsm`
 
 ### Types
 
