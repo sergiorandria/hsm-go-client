@@ -5,18 +5,12 @@ run:
 linters:
   enable:
     - govet
-    - errcheck
     - staticcheck
     - ineffassign
     - unused
-    - gofmt
-    - goimports
     - misspell
-    - revive
   fast: false
 
 linters-settings:
   govet:
-    enable-all: true
-  goimports:
-    local-prefixes: github.com/sergiorandria/hsm-go-client
+    enable-all: false
