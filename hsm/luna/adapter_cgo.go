@@ -62,15 +62,9 @@ func (a *adapter) GetPublicKey(ctx context.Context, id hsm.KeyID) (crypto.Public
 }
 
 func (a *adapter) Sign(ctx context.Context, id hsm.KeyID, digest []byte, mech hsm.Mechanism) ([]byte, error) {
-	// Luna supports CKM_ECDSA for raw digest (our generic) and CKM_ECDSA_SHA256 for hash-then-sign.
-	// Keep raw CKM_ECDSA path to avoid changing generic driver; document alternative.
-	// RSA-PSS: Luna needs PSS params; generic passes nil -> will fail on Luna PSS, adapter could override here.
-	if mech == hsm.MechanismRSAPSSSHA256 {
-		// Adapter contradiction: generic pkcs11/driver_cgo.go:104 passes nil params.
-		// For Luna, we would need to construct CK_RSA_PKCS_PSS_PARAMS with MGF1_SHA256, saltLen 32.
-		// Not wired in generic, so return hint rather than silently failing.
-		// For now delegate and let generic error; future adapter can implement Luna-specific Sign with params via direct pkcs11.Ctx.
-	}
+	// PSS wiring: generic hsm/pkcs11 now uses NewPSSParams(CKM_SHA256, CKG_MGF1_SHA256, 32) for
+	// CKM_RSA_PKCS_PSS (incremental fix in pkcs11/driver_cgo.go:166). Luna supports this;
+	// alternative CKM_SHA256_RSA_PKCS_PSS is not needed for raw digest. Keep delegation.
 	return a.inner.Sign(ctx, id, digest, mech)
 }
 

@@ -88,7 +88,10 @@ func NewDriver(cfg Config) (*Driver, error) {
 		return nil, fmt.Errorf("pkcs11: failed to load %s", cfg.LibraryPath)
 	}
 	if err := p.Initialize(); err != nil {
-		return nil, fmt.Errorf("pkcs11 Initialize: %w", err)
+		// Allow already-initialized when multiple drivers share same library (e.g. Luna tests)
+		if err != pkcs11.Error(pkcs11.CKR_CRYPTOKI_ALREADY_INITIALIZED) {
+			return nil, fmt.Errorf("pkcs11 Initialize: %w", err)
+		}
 	}
 	slots, err := p.GetSlotList(true)
 	if err != nil {
@@ -170,7 +173,10 @@ func mechanismFor(mech Mechanism) ([]*pkcs11.Mechanism, error) {
 	case MechanismRSAPKCS1SHA256:
 		return []*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS, nil)}, nil
 	case MechanismRSAPSSSHA256:
-		return []*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS_PSS, nil)}, nil
+		// Luna and other strict HSMs require CK_RSA_PKCS_PSS_PARAMS (hashAlg, mgf, saltLen)
+		// Use SHA256 + MGF1-SHA256 + salt 32 (digest len). Generic fix for Luna PSS wiring.
+		params := pkcs11.NewPSSParams(pkcs11.CKM_SHA256, pkcs11.CKG_MGF1_SHA256, 32)
+		return []*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS_PSS, params)}, nil
 	default:
 		return nil, fmt.Errorf("unsupported mechanism %q", mech)
 	}
@@ -662,10 +668,11 @@ func (d *Driver) Close() error {
 	d.mu.Unlock()
 	close(d.sessionPool)
 	for sh := range d.sessionPool {
-		d.ctx.Logout(sh)
-		d.ctx.CloseSession(sh)
+		_ = d.ctx.Logout(sh)
+		_ = d.ctx.CloseSession(sh)
 	}
-	d.ctx.Finalize()
+	// Ignore AlreadyFinalized errors when multiple drivers share library (incremental: single device)
+	_ = d.ctx.Finalize()
 	d.ctx.Destroy()
 	return nil
 }
