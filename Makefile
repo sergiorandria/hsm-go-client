@@ -10,15 +10,25 @@ help:
 	@echo "  clean      - Clean build artifacts"
 
 test:
-	go test -race -v ./hsm/...
+	go test -race -v ./hsm/... ./hsm/http ./hsm/pkcs11
+
+test-pkcs11:
+	SOFTHSM2_CONF=/tmp/softhsm2.conf go test -race -v ./hsm/pkcs11 -run TestPKCS11Integration
+
+test-softhsm-setup:
+	mkdir -p /tmp/softhsm_tokens
+	echo "directories.tokendir = /tmp/softhsm_tokens" > /tmp/softhsm2.conf
+	echo "objectstore.backend = file" >> /tmp/softhsm2.conf
+	SOFTHSM2_CONF=/tmp/softhsm2.conf softhsm2-util --init-token --slot 0 --label test-token --pin 1234 --so-pin 1234 || true
+	SOFTHSM2_CONF=/tmp/softhsm2.conf softhsm2-util --show-slots
 
 test-coverage:
-	go test -race -coverprofile=coverage.out ./hsm/...
+	go test -race -coverprofile=coverage.out ./hsm/... ./hsm/http
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "coverage: coverage.html"
 
 bench:
-	go test -bench=. -benchmem ./hsm
+	go test -bench=. -benchmem ./hsm/http
 
 build: examples/basic_sign examples/batch_signing examples/key_management
 
@@ -32,13 +42,13 @@ examples/key_management:
 	go build -o examples/key_management ./examples/key_management.go
 
 lint:
-	golangci-lint run ./hsm/...
+	golangci-lint run ./hsm/... ./hsm/http ./hsm/pkcs11
 
 fmt:
 	go fmt ./...
 
 vet:
-	go vet ./hsm/...
+	go vet ./hsm/... ./hsm/http ./hsm/pkcs11
 
 clean:
 	rm -f examples/basic_sign examples/batch_signing examples/key_management

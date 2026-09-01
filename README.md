@@ -5,17 +5,18 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/sergiorandria/hsm-go-client)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A production-ready Go client library for interacting with the ESP32 HTTP-based HSM (Hardware Security Module).
+A production-ready Go client library for HSMs: microcontroller HTTP (ESP32/Raspberry Pi/self-made) and industrial PKCS#11 (Thales Luna, nShield, Utimaco, YubiHSM2, AWS CloudHSM, SoftHSM2).
 
 ## Features
 
-- **Key Generation**: Create ECDSA P-256 keys for users
-- **File Upload**: Efficiently upload files in chunks to the HSM
-- **Signing**: Sign files with user keys
+- **Two backends**: `hsm/http` for microcontrollers (ESP32/Raspberry Pi/HTTP JSON) and `hsm/pkcs11` for industrial HSMs (PKCS#11)
+- **Generic Driver**: `hsm.Driver` interface + `hsm.NewDriver` + `crypto.Signer` support
+- **Key Generation**: ECDSA P-256/P-384/P-521, RSA 2048-4096, Ed25519 via PKCS#11; ECDSA P-256 via HTTP
+- **Signing**: File upload + sign (HTTP) or host-hash + sign digest (PKCS#11)
 - **Error Handling**: Comprehensive error handling with detailed error messages
 - **Context Support**: Full support for request cancellation and timeouts
-- **Concurrent Operations**: Safe for concurrent use
-- **Testing**: Comprehensive test suite with benchmarks
+- **Concurrent Operations**: Safe for concurrent use (PKCS#11 session pool)
+- **Testing**: Comprehensive test suite with SoftHSM2 integration
 
 ## Installation
 
@@ -24,6 +25,8 @@ go get github.com/sergiorandria/hsm-go-client
 ```
 
 ## Quick Start
+
+### Microcontroller HTTP (ESP32/Raspberry Pi/self-made)
 
 ```go
 package main
@@ -34,13 +37,16 @@ import (
     "log"
     
     "github.com/sergiorandria/hsm-go-client/hsm"
+    "github.com/sergiorandria/hsm-go-client/hsm/http" // canonical; hsm.NewClient shim also works
 )
 
 func main() {
-    client := hsm.NewClient(hsm.Config{
+    // Generic driver (or use http.NewClient directly)
+    client := http.NewClient(http.Config{
         BaseURL:     "http://192.168.0.102",
         BearerToken: "your-token-here",
     })
+    // Or legacy shim: hsm.NewClient(hsm.Config{...})
     
     ctx := context.Background()
     
@@ -58,6 +64,38 @@ func main() {
     }
     
     log.Printf("Signature: %s", signResp.SignatureBase64)
+}
+```
+
+### Industrial PKCS#11 (Thales Luna, nShield, SoftHSM2) — requires `CGO_ENABLED=1`
+
+```go
+package main
+
+import (
+    "context"
+    "crypto/sha256"
+    "log"
+    "github.com/sergiorandria/hsm-go-client/hsm"
+)
+
+func main() {
+    driver, err := hsm.NewDriver(hsm.DriverConfig{
+        Backend: "pkcs11",
+        PKCS11: hsm.PKCS11Config{
+            LibraryPath: "/usr/lib/softhsm/libsofthsm2.so",
+            TokenLabel:  "test-token",
+            PIN:         "1234",
+        },
+    })
+    if err != nil { log.Fatal(err) }
+    defer driver.Close()
+    ctx := context.Background()
+    ki, _ := driver.GenerateKey(ctx, hsm.KeySpec{Label: "alice", Curve: "P-256"})
+    log.Println(ki.PublicKeyPEM)
+    digest := sha256.Sum256([]byte("Hello, World!"))
+    sig, _ := driver.Sign(ctx, hsm.KeyID{Label: "alice"}, digest[:], hsm.MechanismECDSASHA256)
+    log.Printf("Signature len %d", len(sig))
 }
 ```
 
@@ -210,13 +248,23 @@ base64 -d signature.b64 > signature.der
 openssl dgst -sha256 -verify public.pem -signature signature.der file.dat
 ```
 
+## Backends
+
+| Backend | Package | Transport | Use for |
+|---------|---------|-----------|---------|
+| Microcontroller HTTP | `hsm/http` (shim `hsm` + deprecated `hsm/esp32`) | HTTP `POST /cmd` JSON, chunked 8 KiB | ESP32, Raspberry Pi, self-made boards |
+| PKCS#11 | `hsm/pkcs11` via `hsm.Driver` (`CGO_ENABLED=1`) | PKCS#11 `libsofthsm2.so`/`libCryptoki2.so` | Thales Luna, nShield, Utimaco, YubiHSM2, AWS CloudHSM, SoftHSM2 |
+
+Generic `hsm.Driver` (`GenerateKey`, `GetPublicKey`, `Sign(digest)`, `Signer() crypto.Signer`, `ListKeys`, `Info`, `Close`) works for both; HTTP signs via file upload, PKCS#11 signs host-computed digest (single USB/network device, session pool).
+
 ## Implementation Details
 
-- **Chunk Size**: Maximum upload chunk is 8 KiB (configurable, but ESP32 limits to 32 KiB total)
-- **Authentication**: Bearer token in Authorization header
-- **Protocols**: HTTP/HTTPS
-- **Encoding**: Base64 for binary data, JSON for all messages
-- **Thread-safe**: Safe for concurrent goroutines
+- **HTTP Chunk Size**: Maximum upload chunk is 8 KiB (configurable, but microcontroller limits to 32 KiB total)
+- **HTTP Authentication**: Bearer token in Authorization header
+- **PKCS#11 Authentication**: Slot `PIN` + `TokenLabel`/`SlotID` + `LibraryPath` (mTLS for network HSMs)
+- **Protocols**: HTTP/HTTPS (microcontroller) / PKCS#11 (industrial)
+- **Encoding**: Base64 for binary data, JSON for all messages (HTTP)
+- **Thread-safe**: Safe for concurrent goroutines (session pool for PKCS#11)
 
 ## Debugging
 

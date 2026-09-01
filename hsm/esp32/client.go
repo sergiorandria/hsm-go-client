@@ -1,4 +1,7 @@
-package hsm
+// Package esp32 is deprecated: use github.com/sergiorandria/hsm-go-client/hsm/http for
+// generic microcontroller HSMs (ESP32, Raspberry Pi, self-made boards).
+// This package is kept for backward compatibility and re-exports the HTTP backend.
+package esp32
 
 import (
 	hhttp "github.com/sergiorandria/hsm-go-client/hsm/http"
@@ -6,15 +9,13 @@ import (
 	"time"
 )
 
-// Re-export HTTP microcontroller backend as the default hsm package for backward compatibility.
-
-// DefaultChunkSize is the default chunk size for file uploads.
+// Deprecated: use hhttp.DefaultChunkSize
 const DefaultChunkSize = hhttp.DefaultChunkSize
 
-// Client is the HTTP client for interacting with a microcontroller HSM (ESP32, Raspberry Pi, self-made).
+// Deprecated: use http.Client
 type Client = hhttp.Client
 
-// Config holds configuration for creating a new Client.
+// Deprecated: use http.Config
 type Config struct {
 	BaseURL     string
 	BearerToken string
@@ -23,7 +24,7 @@ type Config struct {
 	Timeout     time.Duration
 }
 
-// NewClient creates a new HSM client (delegates to hsm/http).
+// Deprecated: use http.NewClient
 func NewClient(cfg Config) *Client {
 	return hhttp.NewClient(hhttp.Config{
 		BaseURL:     cfg.BaseURL,
@@ -34,7 +35,6 @@ func NewClient(cfg Config) *Client {
 	})
 }
 
-// Re-export request/response types for backward compatibility.
 type CreateKeyRequest = hhttp.CreateKeyRequest
 type CreateKeyResponse = hhttp.CreateKeyResponse
 type UploadStartRequest = hhttp.UploadStartRequest

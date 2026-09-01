@@ -6,9 +6,12 @@ Get up and running with the HSM Go client in 5 minutes.
 
 ```bash
 go get github.com/sergiorandria/hsm-go-client
+# For industrial PKCS#11, build with: CGO_ENABLED=1 go build
 ```
 
 ## 2. Create a Basic Program
+
+### Microcontroller HTTP (ESP32/Raspberry Pi/self-made)
 
 ```go
 package main
@@ -19,12 +22,12 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/sergiorandria/hsm-go-client/hsm"
+	"github.com/sergiorandria/hsm-go-client/hsm/http"
 )
 
 func main() {
-	// Connect to HSM
-	client := hsm.NewClient(hsm.Config{
+	// Connect to microcontroller HSM (ESP32, Pi, etc.)
+	client := http.NewClient(http.Config{
 		BaseURL:     "http://192.168.0.102",
 		BearerToken: "your-token-here",
 	})
@@ -51,6 +54,40 @@ func main() {
 	fmt.Printf("\nResults:\n")
 	fmt.Printf("  Hash: %s\n", signResp.HashHex)
 	fmt.Printf("  Signature: %s\n", signResp.SignatureBase64)
+}
+```
+
+### Industrial PKCS#11 (single USB/network device, `CGO_ENABLED=1`)
+
+```go
+package main
+
+import (
+	"context"
+	"crypto/sha256"
+	"fmt"
+	"log"
+
+	"github.com/sergiorandria/hsm-go-client/hsm"
+)
+
+func main() {
+	driver, err := hsm.NewDriver(hsm.DriverConfig{
+		Backend: "pkcs11",
+		PKCS11: hsm.PKCS11Config{
+			LibraryPath: "/usr/lib/softhsm/libsofthsm2.so",
+			TokenLabel:  "test-token",
+			PIN:         "1234",
+		},
+	})
+	if err != nil { log.Fatal(err) }
+	defer driver.Close()
+	ctx := context.Background()
+	ki, _ := driver.GenerateKey(ctx, hsm.KeySpec{Label: "alice", Curve: "P-256"})
+	fmt.Println(ki.PublicKeyPEM)
+	digest := sha256.Sum256([]byte("Hello, HSM!"))
+	sig, _ := driver.Sign(ctx, hsm.KeyID{Label: "alice"}, digest[:], hsm.MechanismECDSASHA256)
+	fmt.Printf("Signature len %d\n", len(sig))
 }
 ```
 
@@ -154,14 +191,14 @@ client := hsm.NewClient(hsm.Config{
 ## Running Examples
 
 ```bash
-# Basic signing
-go run examples/basic_sign.go
-
-# Batch operations
+# Microcontroller HTTP
+go run examples/basic_sign.go          # uses hsm/http (also hsm.NewClient shim)
 go run examples/batch_signing.go
-
-# Key management
 go run examples/key_management.go
+
+# Industrial PKCS#11 (requires CGO_ENABLED=1 and SoftHSM2)
+SOFTHSM2_CONF=/tmp/softhsm2.conf go run examples/pkcs11_sign.go
+# Setup once: mkdir -p /tmp/softhsm_tokens; echo "directories.tokendir = /tmp/softhsm_tokens" > /tmp/softhsm2.conf; SOFTHSM2_CONF=/tmp/softhsm2.conf softhsm2-util --init-token --slot 0 --label test-token --pin 1234 --so-pin 1234
 ```
 
 ## Troubleshooting

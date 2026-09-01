@@ -1,8 +1,8 @@
-package hsm
+// Package esp32 is deprecated: use hsm/http
+package esp32
 
 import hhttp "github.com/sergiorandria/hsm-go-client/hsm/http"
 
-// Re-export types for backward compatibility.
 type Signature = hhttp.Signature
 type Hash = hhttp.Hash
 type Key = hhttp.Key
