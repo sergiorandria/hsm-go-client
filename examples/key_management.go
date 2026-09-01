@@ -41,8 +41,7 @@ func main() {
 
 	// Try with overwrite flag
 	fmt.Println("\nRecreating key for 'user_a' with overwrite=true...")
-	resp, err = client.CreateKey(ctx, "user_a", true)
-	if err != nil {
+	if _, err := client.CreateKey(ctx, "user_a", true); err != nil {
 		log.Fatalf("Failed: %v", err)
 	}
 	fmt.Printf("✓ Key recreated successfully\n")
