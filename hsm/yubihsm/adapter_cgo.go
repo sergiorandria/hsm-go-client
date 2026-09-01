@@ -12,6 +12,22 @@ import (
 	"github.com/sergiorandria/hsm-go-client/hsm/pkcs11"
 )
 
+func init() {
+	hsm.RegisterBackend("yubihsm", func(cfg hsm.DriverConfig, opts ...hsm.Option) (hsm.Driver, error) {
+		yCfg := Config{
+			LibraryPath:  cfg.PKCS11.LibraryPath,
+			TokenLabel:   cfg.PKCS11.TokenLabel,
+			PIN:          cfg.PKCS11.PIN,
+			SlotID:       cfg.PKCS11.SlotID,
+			MaxSessions:  cfg.PKCS11.MaxSessions,
+		}
+		if yCfg.LibraryPath == "" {
+			yCfg.LibraryPath = "/usr/lib/x86_64-linux-gnu/pkcs11/yubihsm_pkcs11.so"
+		}
+		return NewDriver(yCfg)
+	})
+}
+
 // Config for YubiHSM2 via PKCS#11.
 // Follows Yubico docs: yubihsm_pkcs11.so + yubihsm-connector.
 type Config struct {

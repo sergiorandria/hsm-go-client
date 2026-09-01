@@ -79,10 +79,9 @@ type PKCS11Config struct {
 	MaxSessions int    // default 4
 }
 
-// NewDriver creates a Driver for the selected backend.
-func NewDriver(cfg DriverConfig) (Driver, error) {
-	switch cfg.Backend {
-	case "http", "microcontroller", "mcu", "esp32":
+func init() {
+	// Register core backends via registry pattern (Factory). Vendor adapters self-register.
+	RegisterBackend("http", func(cfg DriverConfig, opts ...Option) (Driver, error) {
 		hCfg := hhttp.Config{
 			BaseURL:     cfg.HTTP.BaseURL,
 			BearerToken: cfg.HTTP.BearerToken,
@@ -92,8 +91,50 @@ func NewDriver(cfg DriverConfig) (Driver, error) {
 		if hCfg.Timeout == 0 {
 			hCfg.Timeout = 30 * time.Second
 		}
+		_ = applyOptions(opts...)
 		return NewHTTPDriver(hhttp.NewClient(hCfg)), nil
-	case "pkcs11":
+	})
+	RegisterBackend("microcontroller", func(cfg DriverConfig, opts ...Option) (Driver, error) {
+		hCfg := hhttp.Config{
+			BaseURL:     cfg.HTTP.BaseURL,
+			BearerToken: cfg.HTTP.BearerToken,
+			ChunkSize:   cfg.HTTP.ChunkSize,
+			Timeout:     time.Duration(cfg.HTTP.TimeoutSeconds) * time.Second,
+		}
+		if hCfg.Timeout == 0 {
+			hCfg.Timeout = 30 * time.Second
+		}
+		_ = applyOptions(opts...)
+		return NewHTTPDriver(hhttp.NewClient(hCfg)), nil
+	})
+	RegisterBackend("mcu", func(cfg DriverConfig, opts ...Option) (Driver, error) {
+		hCfg := hhttp.Config{
+			BaseURL:     cfg.HTTP.BaseURL,
+			BearerToken: cfg.HTTP.BearerToken,
+			ChunkSize:   cfg.HTTP.ChunkSize,
+			Timeout:     time.Duration(cfg.HTTP.TimeoutSeconds) * time.Second,
+		}
+		if hCfg.Timeout == 0 {
+			hCfg.Timeout = 30 * time.Second
+		}
+		_ = applyOptions(opts...)
+		return NewHTTPDriver(hhttp.NewClient(hCfg)), nil
+	})
+	RegisterBackend("esp32", func(cfg DriverConfig, opts ...Option) (Driver, error) {
+		hCfg := hhttp.Config{
+			BaseURL:     cfg.HTTP.BaseURL,
+			BearerToken: cfg.HTTP.BearerToken,
+			ChunkSize:   cfg.HTTP.ChunkSize,
+			Timeout:     time.Duration(cfg.HTTP.TimeoutSeconds) * time.Second,
+		}
+		if hCfg.Timeout == 0 {
+			hCfg.Timeout = 30 * time.Second
+		}
+		_ = applyOptions(opts...)
+		return NewHTTPDriver(hhttp.NewClient(hCfg)), nil
+	})
+	RegisterBackend("pkcs11", func(cfg DriverConfig, opts ...Option) (Driver, error) {
+		_ = applyOptions(opts...)
 		pCfg := pkcs11.Config{
 			LibraryPath: cfg.PKCS11.LibraryPath,
 			SlotID:      cfg.PKCS11.SlotID,
@@ -102,7 +143,14 @@ func NewDriver(cfg DriverConfig) (Driver, error) {
 			MaxSessions: cfg.PKCS11.MaxSessions,
 		}
 		return NewPKCS11Driver(pCfg)
-	default:
-		return nil, fmt.Errorf("unknown backend %q: must be \"http\" or \"pkcs11\"", cfg.Backend)
+	})
+}
+
+// NewDriver creates a Driver via backend registry. Supports Options for production (logger, retry, metrics).
+// For backward compat, Backend "http" or "pkcs11" required; third-party backends can RegisterBackend.
+func NewDriver(cfg DriverConfig, opts ...Option) (Driver, error) {
+	if factory, ok := getFactory(cfg.Backend); ok {
+		return factory(cfg, opts...)
 	}
+	return nil, fmt.Errorf("unknown backend %q: must be one of %v (registered: %v)", cfg.Backend, []string{"http", "pkcs11"}, ListBackends())
 }

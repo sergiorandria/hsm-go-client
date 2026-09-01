@@ -13,6 +13,29 @@ import (
 	"github.com/sergiorandria/hsm-go-client/hsm/pkcs11"
 )
 
+func init() {
+	hsm.RegisterBackend("cloudhsm", func(cfg hsm.DriverConfig, opts ...hsm.Option) (hsm.Driver, error) {
+		cCfg := Config{
+			LibraryPath: cfg.PKCS11.LibraryPath,
+			TokenLabel:  cfg.PKCS11.TokenLabel,
+			PIN:         cfg.PKCS11.PIN,
+			SlotID:      cfg.PKCS11.SlotID,
+			MaxSessions: cfg.PKCS11.MaxSessions,
+		}
+		return NewDriver(cCfg)
+	})
+	hsm.RegisterBackend("aws-cloudhsm", func(cfg hsm.DriverConfig, opts ...hsm.Option) (hsm.Driver, error) {
+		cCfg := Config{
+			LibraryPath: cfg.PKCS11.LibraryPath,
+			TokenLabel:  cfg.PKCS11.TokenLabel,
+			PIN:         cfg.PKCS11.PIN,
+			SlotID:      cfg.PKCS11.SlotID,
+			MaxSessions: cfg.PKCS11.MaxSessions,
+		}
+		return NewDriver(cCfg)
+	})
+}
+
 // Config for AWS CloudHSM via libcloudhsm_pkcs11.so.
 type Config struct {
 	LibraryPath string // e.g. /opt/cloudhsm/lib/libcloudhsm_pkcs11.so
