@@ -31,6 +31,7 @@ type Config struct {
 	PIN         string
 	SlotID      *uint
 	MaxSessions int
+	ClusterID   string
 }
 
 func NewDriver(cfg Config) (hsm.Driver, error) {
