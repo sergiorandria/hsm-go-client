@@ -9,8 +9,8 @@ A production-ready Go client library for HSMs: microcontroller HTTP (ESP32/Raspb
 
 ## Features
 
-- **Two backends**: `hsm/http` for microcontrollers (ESP32/Raspberry Pi/HTTP JSON) and `hsm/pkcs11` for industrial HSMs (PKCS#11)
-- **Generic Driver**: `hsm.Driver` interface + `hsm.NewDriver` + `crypto.Signer` support
+- **Backends**: `hsm/http` for microcontrollers (ESP32/Raspberry Pi/HTTP JSON) and `hsm/pkcs11` generic industrial; vendor adapters `hsm/yubihsm`, `hsm/luna`, `hsm/cloudhsm` for contradictions
+- **Generic Driver**: `hsm.Driver` interface + `hsm.NewDriver` + `crypto.Signer` support (no change to generic `hsm/pkcs11` when adapting vendors — interface+adapter)
 - **Key Generation**: ECDSA P-256/P-384/P-521, RSA 2048-4096, Ed25519 via PKCS#11; ECDSA P-256 via HTTP
 - **Signing**: File upload + sign (HTTP) or host-hash + sign digest (PKCS#11)
 - **Error Handling**: Comprehensive error handling with detailed error messages
@@ -253,9 +253,12 @@ openssl dgst -sha256 -verify public.pem -signature signature.der file.dat
 | Backend | Package | Transport | Use for |
 |---------|---------|-----------|---------|
 | Microcontroller HTTP | `hsm/http` (shim `hsm` + deprecated `hsm/esp32`) | HTTP `POST /cmd` JSON, chunked 8 KiB | ESP32, Raspberry Pi, self-made boards |
-| PKCS#11 | `hsm/pkcs11` via `hsm.Driver` (`CGO_ENABLED=1`) | PKCS#11 `libsofthsm2.so`/`libCryptoki2.so` | Thales Luna, nShield, Utimaco, YubiHSM2, AWS CloudHSM, SoftHSM2 |
+| PKCS#11 generic | `hsm/pkcs11` via `hsm.Driver` (`CGO_ENABLED=1`) | PKCS#11 `libsofthsm2.so`/`libCryptoki2.so` | SoftHSM2, any PKCS#11 |
+| YubiHSM2 adapter | `hsm/yubihsm` (`CGO_ENABLED=1`) | PKCS#11 `yubihsm_pkcs11.so` + `yubihsm-connector` | YubiHSM2 USB (PIN `0001:password`) |
+| Luna adapter | `hsm/luna` (`CGO_ENABLED=1`) | PKCS#11 `libCryptoki2_64.so` | Thales Luna Network HSM (partition) |
+| CloudHSM adapter | `hsm/cloudhsm` (`CGO_ENABLED=1`) | PKCS#11 `libcloudhsm_pkcs11.so` | AWS CloudHSM v5 (CU `user:pass`, cluster) |
 
-Generic `hsm.Driver` (`GenerateKey`, `GetPublicKey`, `Sign(digest)`, `Signer() crypto.Signer`, `ListKeys`, `Info`, `Close`) works for both; HTTP signs via file upload, PKCS#11 signs host-computed digest (single USB/network device, session pool).
+Generic `hsm.Driver` (`GenerateKey`, `GetPublicKey`, `Sign(digest)`, `Signer() crypto.Signer`, `ListKeys`, `Info`, `Close`) works for all; vendor adapters wrap `hsm/pkcs11` without modifying it (interface+adapter for contradictions: YubiHSM PIN format, Luna PSS params/partition, CloudHSM CU/cluster sync). HTTP signs via file upload, PKCS#11 signs host-computed digest (single USB/network device, session pool).
 
 ## Implementation Details
 
