@@ -147,10 +147,20 @@ func init() {
 }
 
 // NewDriver creates a Driver via backend registry. Supports Options for production (logger, retry, metrics).
-// For backward compat, Backend "http" or "pkcs11" required; third-party backends can RegisterBackend.
+// Validates config and wraps with middleware (logging/metrics/retry) for production.
 func NewDriver(cfg DriverConfig, opts ...Option) (Driver, error) {
-	if factory, ok := getFactory(cfg.Backend); ok {
-		return factory(cfg, opts...)
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("unknown backend %q: must be one of %v (registered: %v)", cfg.Backend, []string{"http", "pkcs11"}, ListBackends())
+	o := applyOptions(opts...)
+	factory, ok := getFactory(cfg.Backend)
+	if !ok {
+		return nil, fmt.Errorf("%w: unknown backend %q (registered: %v)", ErrInvalidArgument, cfg.Backend, ListBackends())
+	}
+	d, err := factory(cfg, opts...)
+	if err != nil {
+		return nil, err
+	}
+	// Decorate with production middleware (logging/metrics/retry)
+	return wrapWithMiddleware(d, o), nil
 }
