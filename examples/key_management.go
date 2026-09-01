@@ -35,8 +35,7 @@ func main() {
 
 	// Try to create a key that already exists
 	fmt.Println("\n\nTrying to create duplicate key for 'user_a'...")
-	resp, err := client.CreateKey(ctx, "user_a", false)
-	if err != nil {
+	if _, err := client.CreateKey(ctx, "user_a", false); err != nil {
 		fmt.Printf("✓ Got expected error: %v\n", err)
 	}
 

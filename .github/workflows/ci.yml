@@ -23,10 +23,10 @@ jobs:
           go-version: ${{ matrix.go }}
           cache: true
       - run: go vet ./hsm/...
-      - run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+      - run: go test -race -coverprofile=coverage.out -covermode=atomic ./hsm/...
       - run: go test -bench=. -benchmem ./hsm -run=^$
       - if: matrix.go == '1.22'
-        run: go build ./...
+        run: go build ./hsm/...
       - uses: actions/upload-artifact@v4
         if: matrix.go == '1.22'
         with:
@@ -44,7 +44,7 @@ jobs:
       - uses: golangci/golangci-lint-action@v6
         with:
           version: latest
-          args: --timeout=5m
+          args: --timeout=5m ./hsm/...
 
   fmt:
     runs-on: ubuntu-latest

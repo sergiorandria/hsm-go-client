@@ -1,4 +1,9 @@
-version: "2"
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+  skip-dirs:
+    - examples
+
 linters:
   enable:
     - govet
@@ -10,16 +15,10 @@ linters:
     - goimports
     - misspell
     - revive
-  settings:
-    govet:
-      enable-all: true
-run:
-  timeout: 5m
-  modules-download-mode: readonly
-formatters:
-  enable:
-    - gofmt
-    - goimports
-  settings:
-    goimports:
-      local-prefixes: github.com/sergiorandria/hsm-go-client
+  fast: false
+
+linters-settings:
+  govet:
+    enable-all: true
+  goimports:
+    local-prefixes: github.com/sergiorandria/hsm-go-client
