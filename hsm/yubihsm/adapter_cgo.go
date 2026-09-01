@@ -75,11 +75,15 @@ func normalizePIN(pin string) string {
 }
 
 func (a *adapter) GenerateKey(ctx context.Context, spec hsm.KeySpec) (*hsm.KeyInfo, error) {
-	// YubiHSM supports P-256/P-384 and Ed25519 but not P-521 via PKCS#11.
-	// Adapter validates and delegates to generic.
+	// YubiHSM2 philosophy: capability-based, session-limited (2), AuthKey 0x0001.
+	// Supports P-256/P-384 and Ed25519 (not P-521 via PKCS#11). Generic now handles Ed25519 via
+	// CKM_EC_EDWARDS_KEY_PAIR_GEN + OID 1.3.101.112 + CKM_EDDSA (incremental fix pkcs11/driver_cgo.go:185).
 	if spec.Mechanism == hsm.MechanismEd25519 {
-		// Generic maps Ed25519 to CKM_EDDSA stub; YubiHSM actually supports it - delegate but note.
-		// For now delegate; future: set CKA_EC_PARAMS for Edwards 25519 OID 1.3.101.112
+		// Normalize Curve for Edwards; YubiHSM expects Ed25519 OID, not P-256
+		if spec.Curve == "" {
+			spec.Curve = "Ed25519"
+		}
+		// YubiHSM session: ensure capability sign-eddsa; generic handles via PKCS#11.
 	}
 	return a.inner.GenerateKey(ctx, spec)
 }

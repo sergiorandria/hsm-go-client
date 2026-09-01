@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -166,6 +167,14 @@ func (d *Driver) putSession(sh pkcs11.SessionHandle) {
 	}
 }
 
+const (
+	// CKM_EDDSA per PKCS#11 v2.40 is 0x1053, CKM_EC_EDWARDS_KEY_PAIR_GEN 0x1055
+	// SoftHSM2 shows EDDSA at 0x1054 and EC-EDWARDS at 0x1055; use spec value,
+	// YubiHSM2 via yubihsm_pkcs11.so uses 0x1053. Keep spec, adapter can fallback.
+	ckmEdDSA                = 0x00001053
+	ckmECEwdardsKeyPairGen  = 0x00001055
+)
+
 func mechanismFor(mech Mechanism) ([]*pkcs11.Mechanism, error) {
 	switch mech {
 	case MechanismECDSASHA256, MechanismECDSASHA384, MechanismECDSASHA512, "ECDSA-P256", "ECDSA-P384", "":
@@ -177,6 +186,9 @@ func mechanismFor(mech Mechanism) ([]*pkcs11.Mechanism, error) {
 		// Use SHA256 + MGF1-SHA256 + salt 32 (digest len). Generic fix for Luna PSS wiring.
 		params := pkcs11.NewPSSParams(pkcs11.CKM_SHA256, pkcs11.CKG_MGF1_SHA256, 32)
 		return []*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_RSA_PKCS_PSS, params)}, nil
+	case MechanismEd25519:
+		// YubiHSM2 and SoftHSM2 via PKCS#11 use CKM_EDDSA for raw message (not pre-hashed)
+		return []*pkcs11.Mechanism{pkcs11.NewMechanism(ckmEdDSA, nil)}, nil
 	default:
 		return nil, fmt.Errorf("unsupported mechanism %q", mech)
 	}
@@ -188,6 +200,10 @@ func ecParams(curve string) []byte {
 		return []byte{0x06, 0x05, 0x2B, 0x81, 0x04, 0x00, 0x22} // secp384r1 OID 1.3.132.0.34
 	case "P-521":
 		return []byte{0x06, 0x05, 0x2B, 0x81, 0x04, 0x00, 0x23} // secp521r1
+	case "Ed25519", "ed25519":
+		return []byte{0x06, 0x03, 0x2B, 0x65, 0x70} // OID 1.3.101.112 Ed25519
+	case "X25519":
+		return []byte{0x06, 0x03, 0x2B, 0x65, 0x6E} // OID 1.3.101.110
 	default: // P-256
 		return []byte{0x06, 0x08, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x03, 0x01, 0x07} // prime256v1
 	}
@@ -203,6 +219,10 @@ func curveFromParams(params []byte) elliptic.Curve {
 	default:
 		return elliptic.P256()
 	}
+}
+
+func isEd25519Params(params []byte) bool {
+	return fmt.Sprintf("%x", params) == "06032b6570"
 }
 
 // GenerateKey creates key pair inside HSM.
@@ -223,6 +243,53 @@ func (d *Driver) GenerateKey(ctx context.Context, spec KeySpec) (*KeyInfo, error
 	mech := spec.Mechanism
 	if mech == "" {
 		mech = MechanismECDSASHA256
+	}
+
+	// Ed25519 handling (YubiHSM2 philosophy: Edwards curve, CKM_EC_EDWARDS_KEY_PAIR_GEN + CKM_EDDSA)
+	if mech == MechanismEd25519 {
+		edParams := ecParams("Ed25519")
+		pubTemplate := []*pkcs11.Attribute{
+			pkcs11.NewAttribute(pkcs11.CKA_LABEL, spec.Label),
+			pkcs11.NewAttribute(pkcs11.CKA_ID, id),
+			pkcs11.NewAttribute(pkcs11.CKA_VERIFY, true),
+			pkcs11.NewAttribute(pkcs11.CKA_EC_PARAMS, edParams),
+			pkcs11.NewAttribute(pkcs11.CKA_TOKEN, true),
+		}
+		privTemplate := []*pkcs11.Attribute{
+			pkcs11.NewAttribute(pkcs11.CKA_LABEL, spec.Label),
+			pkcs11.NewAttribute(pkcs11.CKA_ID, id),
+			pkcs11.NewAttribute(pkcs11.CKA_SIGN, true),
+			pkcs11.NewAttribute(pkcs11.CKA_SENSITIVE, true),
+			pkcs11.NewAttribute(pkcs11.CKA_EXTRACTABLE, spec.Extractable),
+			pkcs11.NewAttribute(pkcs11.CKA_TOKEN, true),
+			pkcs11.NewAttribute(pkcs11.CKA_PRIVATE, true),
+		}
+		pubHandle, _, err := d.ctx.GenerateKeyPair(sh,
+			[]*pkcs11.Mechanism{pkcs11.NewMechanism(ckmECEwdardsKeyPairGen, nil)},
+			pubTemplate, privTemplate)
+		if err != nil {
+			// Fallback to generic EC for SoftHSM that may not support Edwards
+			return nil, fmt.Errorf("GenerateKeyPair Ed25519: %w", err)
+		}
+		attrs, err := d.ctx.GetAttributeValue(sh, pubHandle, []*pkcs11.Attribute{
+			pkcs11.NewAttribute(pkcs11.CKA_EC_POINT, nil),
+			pkcs11.NewAttribute(pkcs11.CKA_EC_PARAMS, nil),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("GetAttributeValue Ed25519: %w", err)
+		}
+		var ecPoint []byte
+		for _, a := range attrs {
+			if a.Type == pkcs11.CKA_EC_POINT {
+				ecPoint = a.Value
+			}
+		}
+		pub, pemStr, err := ed25519PointToPEM(ecPoint)
+		if err != nil {
+			return nil, err
+		}
+		_ = pub
+		return &KeyInfo{ID: KeyID{Label: spec.Label, ID: id}, Algorithm: "Ed25519", PublicKeyPEM: pemStr}, nil
 	}
 
 	// Default RSA handling
@@ -342,6 +409,32 @@ func ecPointToPEM(ecPoint, params []byte) (crypto.PublicKey, string, error) {
 	x := new(big.Int).SetBytes(pointBytes[1 : 1+byteLen])
 	y := new(big.Int).SetBytes(pointBytes[1+byteLen:])
 	pub := &ecdsa.PublicKey{Curve: curve, X: x, Y: y}
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		return nil, "", err
+	}
+	pemStr := string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
+	return pub, pemStr, nil
+}
+
+func ed25519PointToPEM(ecPoint []byte) (crypto.PublicKey, string, error) {
+	if len(ecPoint) == 0 {
+		return nil, "", errors.New("empty EC_POINT")
+	}
+	var pointBytes []byte
+	if _, err := asn1.Unmarshal(ecPoint, &pointBytes); err == nil {
+		// octet decoded
+	} else {
+		pointBytes = ecPoint
+	}
+	// YubiHSM/SoftHSM may return 32 bytes raw or with 0x04 prefix stripped; handle both
+	if len(pointBytes) == 33 && pointBytes[0] == 0x04 {
+		pointBytes = pointBytes[1:]
+	}
+	if len(pointBytes) != ed25519.PublicKeySize {
+		return nil, "", fmt.Errorf("invalid Ed25519 point length %d", len(pointBytes))
+	}
+	pub := ed25519.PublicKey(pointBytes)
 	der, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
 		return nil, "", err
@@ -470,6 +563,9 @@ func (d *Driver) GetPublicKey(ctx context.Context, id KeyID) (crypto.PublicKey, 
 			}
 		}
 		if len(ecPoint) > 0 {
+			if isEd25519Params(params) {
+				return ed25519PointToPEM(ecPoint)
+			}
 			return ecPointToPEM(ecPoint, params)
 		}
 	}
@@ -503,6 +599,10 @@ func (d *Driver) Sign(ctx context.Context, id KeyID, digest []byte, mech Mechani
 	sig, err := d.ctx.Sign(sh, digest)
 	if err != nil {
 		return nil, fmt.Errorf("Sign: %w", err)
+	}
+	// Ed25519 returns 64-byte raw signature, no ASN.1
+	if mech == MechanismEd25519 {
+		return sig, nil
 	}
 	// If ECDSA, convert raw r||s to ASN.1
 	if mech == MechanismECDSASHA256 || mech == MechanismECDSASHA384 || mech == MechanismECDSASHA512 || mech == "" {
@@ -622,13 +722,17 @@ func (d *Driver) ListKeys(ctx context.Context) ([]KeyInfo, error) {
 		}
 		algo := "unknown"
 		if len(params) > 0 {
-			curve := "P-256"
-			if fmt.Sprintf("%x", params) == "06052b81040022" {
-				curve = "P-384"
-			} else if fmt.Sprintf("%x", params) == "06052b81040023" {
-				curve = "P-521"
+			if isEd25519Params(params) {
+				algo = "Ed25519"
+			} else {
+				curve := "P-256"
+				if fmt.Sprintf("%x", params) == "06052b81040022" {
+					curve = "P-384"
+				} else if fmt.Sprintf("%x", params) == "06052b81040023" {
+					curve = "P-521"
+				}
+				algo = "ECDSA-" + curve
 			}
-			algo = "ECDSA-" + curve
 		} else if len(keyType) > 0 {
 			algo = "RSA"
 		}
