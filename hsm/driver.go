@@ -1,8 +1,6 @@
 package hsm
 
 import (
-	"context"
-	"crypto"
 	"fmt"
 	"time"
 
@@ -54,35 +52,7 @@ type SlotInfo struct {
 	Model           string
 }
 
-// Signer is a crypto.Signer bound to a specific key in the HSM.
-// It can be used with tls.Config, x509, etc.
-type Signer interface {
-	crypto.Signer
-	KeyID() KeyID
-}
-
-// Driver is the generic interface implemented by all HSM backends:
-// - http (microcontroller: ESP32/Raspberry Pi, POST /cmd JSON)
-// - pkcs11 (industrial HSM: Thales Luna, nShield, Utimaco, YubiHSM2, AWS CloudHSM, SoftHSM2)
-type Driver interface {
-	// GenerateKey creates a new key pair inside the HSM. Private key never leaves the device.
-	GenerateKey(ctx context.Context, spec KeySpec) (*KeyInfo, error)
-	// GetPublicKey returns the public key for a given KeyID as crypto.PublicKey and PEM.
-	GetPublicKey(ctx context.Context, id KeyID) (crypto.PublicKey, string, error)
-	// Sign signs a pre-computed digest (e.g. SHA256 32 bytes) using the named key.
-	// Digest must be the hash output, not the raw file. Host hashes file locally, sends digest.
-	Sign(ctx context.Context, id KeyID, digest []byte, mech Mechanism) ([]byte, error)
-	// Signer returns a crypto.Signer for the given key.
-	Signer(ctx context.Context, id KeyID, mech Mechanism) (Signer, error)
-	// DeleteKey removes a key from the HSM.
-	DeleteKey(ctx context.Context, id KeyID) error
-	// ListKeys enumerates keys visible in the current slot/partition.
-	ListKeys(ctx context.Context) ([]KeyInfo, error)
-	// Info returns slot/token info.
-	Info(ctx context.Context) (*SlotInfo, error)
-	// Close releases HSM sessions and finalizes the module (for PKCS#11).
-	Close() error
-}
+// Driver is defined in interfaces.go (composes KeyManager, Crypto, Lifecycle).
 
 // DriverConfig selects the backend.
 type DriverConfig struct {
