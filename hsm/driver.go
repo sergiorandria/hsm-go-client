@@ -1,6 +1,7 @@
 package hsm
 
 import (
+	"crypto/tls"
 	"fmt"
 	"time"
 
@@ -67,6 +68,7 @@ type HTTPConfig struct {
 	BearerToken    string
 	ChunkSize      int
 	TimeoutSeconds int
+	TLSConfig      *tls.Config `json:"-"` // mTLS: set RootCAs, GetClientCertificate, MinVersion
 }
 
 // PKCS11Config is for industrial HSMs via PKCS#11.
@@ -87,6 +89,7 @@ func init() {
 			BearerToken: cfg.HTTP.BearerToken,
 			ChunkSize:   cfg.HTTP.ChunkSize,
 			Timeout:     time.Duration(cfg.HTTP.TimeoutSeconds) * time.Second,
+			TLSConfig:   cfg.HTTP.TLSConfig,
 		}
 		if hCfg.Timeout == 0 {
 			hCfg.Timeout = 30 * time.Second
@@ -100,6 +103,7 @@ func init() {
 			BearerToken: cfg.HTTP.BearerToken,
 			ChunkSize:   cfg.HTTP.ChunkSize,
 			Timeout:     time.Duration(cfg.HTTP.TimeoutSeconds) * time.Second,
+			TLSConfig:   cfg.HTTP.TLSConfig,
 		}
 		if hCfg.Timeout == 0 {
 			hCfg.Timeout = 30 * time.Second
@@ -113,6 +117,7 @@ func init() {
 			BearerToken: cfg.HTTP.BearerToken,
 			ChunkSize:   cfg.HTTP.ChunkSize,
 			Timeout:     time.Duration(cfg.HTTP.TimeoutSeconds) * time.Second,
+			TLSConfig:   cfg.HTTP.TLSConfig,
 		}
 		if hCfg.Timeout == 0 {
 			hCfg.Timeout = 30 * time.Second
@@ -126,6 +131,7 @@ func init() {
 			BearerToken: cfg.HTTP.BearerToken,
 			ChunkSize:   cfg.HTTP.ChunkSize,
 			Timeout:     time.Duration(cfg.HTTP.TimeoutSeconds) * time.Second,
+			TLSConfig:   cfg.HTTP.TLSConfig,
 		}
 		if hCfg.Timeout == 0 {
 			hCfg.Timeout = 30 * time.Second

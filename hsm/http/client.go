@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -34,6 +35,8 @@ type Config struct {
 	BearerToken string
 	// HTTPClient is the underlying HTTP client to use (if nil, a default is created)
 	HTTPClient *http.Client
+	// TLSConfig for mTLS / custom CA (production: set RootCAs, Certificates, MinVersion TLS1.2)
+	TLSConfig *tls.Config
 	// ChunkSize is the size of chunks for file uploads (default: 8 KiB)
 	ChunkSize int
 	// Timeout is the timeout for individual requests (default: 30s)
@@ -53,7 +56,17 @@ func NewClient(cfg Config) *Client {
 		if timeout == 0 {
 			timeout = 30 * time.Second
 		}
-		cfg.HTTPClient = &http.Client{Timeout: timeout}
+		transport := &http.Transport{}
+		if cfg.TLSConfig != nil {
+			transport.TLSClientConfig = cfg.TLSConfig
+		}
+		cfg.HTTPClient = &http.Client{
+			Timeout:   timeout,
+			Transport: transport,
+		}
+	} else if cfg.TLSConfig != nil && cfg.HTTPClient.Transport == nil {
+		// If custom HTTPClient without transport but TLSConfig given, wrap
+		cfg.HTTPClient.Transport = &http.Transport{TLSClientConfig: cfg.TLSConfig}
 	}
 
 	// Ensure BaseURL doesn't have trailing slash
