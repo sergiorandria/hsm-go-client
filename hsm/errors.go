@@ -32,6 +32,7 @@ func (e *Error) Error() string {
 
 func (e *Error) Unwrap() error { return e.Err }
 
+//nolint:unused // prepared for scalable error wrapping via middleware
 func wrapError(backend, op string, keyID string, err error, sentinel error) error {
 	if err == nil {
 		return nil

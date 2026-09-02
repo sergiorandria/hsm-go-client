@@ -488,6 +488,7 @@ func (d *Driver) getRSAPublicKey(sh pkcs11.SessionHandle, label string, id []byt
 	return pub, pemStr, nil
 }
 
+//nolint:unused // kept for future direct private key lookup without session reuse
 func (d *Driver) findPrivateKey(ctx context.Context, id KeyID) (pkcs11.ObjectHandle, error) {
 	sh, err := d.getSession(ctx)
 	if err != nil {
@@ -628,10 +629,6 @@ type pkcs11Signer struct {
 func (s *pkcs11Signer) Public() crypto.PublicKey { return s.pub }
 func (s *pkcs11Signer) KeyID() KeyID             { return s.keyID }
 func (s *pkcs11Signer) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	// opts.HashFunc indicates hash; digest is already hashed
-	if opts != nil && opts.HashFunc() != 0 {
-		// digest already hashed by caller (e.g. crypto.SHA256)
-	}
 	return s.driver.Sign(context.Background(), s.keyID, digest, s.mech)
 }
 
