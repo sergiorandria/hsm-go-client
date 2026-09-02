@@ -42,7 +42,7 @@ type Config struct {
 	TokenLabel  string // e.g. "cavium"
 	PIN         string // CU "username:password"
 	SlotID      *uint
-	MaxSessions int // default 4 (HA cluster needs >1 for failover)
+	MaxSessions int    // default 4 (HA cluster needs >1 for failover)
 	ClusterID   string // optional cluster identifier for health check
 }
 

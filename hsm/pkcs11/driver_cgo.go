@@ -171,8 +171,8 @@ const (
 	// CKM_EDDSA per PKCS#11 v2.40 is 0x1053, CKM_EC_EDWARDS_KEY_PAIR_GEN 0x1055
 	// SoftHSM2 shows EDDSA at 0x1054 and EC-EDWARDS at 0x1055; use spec value,
 	// YubiHSM2 via yubihsm_pkcs11.so uses 0x1053. Keep spec, adapter can fallback.
-	ckmEdDSA                = 0x00001053
-	ckmECEwdardsKeyPairGen  = 0x00001055
+	ckmEdDSA               = 0x00001053
+	ckmECEwdardsKeyPairGen = 0x00001055
 )
 
 func mechanismFor(mech Mechanism) ([]*pkcs11.Mechanism, error) {

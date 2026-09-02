@@ -15,11 +15,11 @@ import (
 func init() {
 	hsm.RegisterBackend("yubihsm", func(cfg hsm.DriverConfig, opts ...hsm.Option) (hsm.Driver, error) {
 		yCfg := Config{
-			LibraryPath:  cfg.PKCS11.LibraryPath,
-			TokenLabel:   cfg.PKCS11.TokenLabel,
-			PIN:          cfg.PKCS11.PIN,
-			SlotID:       cfg.PKCS11.SlotID,
-			MaxSessions:  cfg.PKCS11.MaxSessions,
+			LibraryPath: cfg.PKCS11.LibraryPath,
+			TokenLabel:  cfg.PKCS11.TokenLabel,
+			PIN:         cfg.PKCS11.PIN,
+			SlotID:      cfg.PKCS11.SlotID,
+			MaxSessions: cfg.PKCS11.MaxSessions,
 		}
 		if yCfg.LibraryPath == "" {
 			yCfg.LibraryPath = "/usr/lib/x86_64-linux-gnu/pkcs11/yubihsm_pkcs11.so"
