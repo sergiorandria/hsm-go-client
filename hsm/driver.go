@@ -1,8 +1,7 @@
 package hsm
 
 import (
-	"context"
-	"crypto"
+	"crypto/tls"
 	"fmt"
 	"time"
 
@@ -54,35 +53,7 @@ type SlotInfo struct {
 	Model           string
 }
 
-// Signer is a crypto.Signer bound to a specific key in the HSM.
-// It can be used with tls.Config, x509, etc.
-type Signer interface {
-	crypto.Signer
-	KeyID() KeyID
-}
-
-// Driver is the generic interface implemented by all HSM backends:
-// - http (microcontroller: ESP32/Raspberry Pi, POST /cmd JSON)
-// - pkcs11 (industrial HSM: Thales Luna, nShield, Utimaco, YubiHSM2, AWS CloudHSM, SoftHSM2)
-type Driver interface {
-	// GenerateKey creates a new key pair inside the HSM. Private key never leaves the device.
-	GenerateKey(ctx context.Context, spec KeySpec) (*KeyInfo, error)
-	// GetPublicKey returns the public key for a given KeyID as crypto.PublicKey and PEM.
-	GetPublicKey(ctx context.Context, id KeyID) (crypto.PublicKey, string, error)
-	// Sign signs a pre-computed digest (e.g. SHA256 32 bytes) using the named key.
-	// Digest must be the hash output, not the raw file. Host hashes file locally, sends digest.
-	Sign(ctx context.Context, id KeyID, digest []byte, mech Mechanism) ([]byte, error)
-	// Signer returns a crypto.Signer for the given key.
-	Signer(ctx context.Context, id KeyID, mech Mechanism) (Signer, error)
-	// DeleteKey removes a key from the HSM.
-	DeleteKey(ctx context.Context, id KeyID) error
-	// ListKeys enumerates keys visible in the current slot/partition.
-	ListKeys(ctx context.Context) ([]KeyInfo, error)
-	// Info returns slot/token info.
-	Info(ctx context.Context) (*SlotInfo, error)
-	// Close releases HSM sessions and finalizes the module (for PKCS#11).
-	Close() error
-}
+// Driver is defined in interfaces.go (composes KeyManager, Crypto, Lifecycle).
 
 // DriverConfig selects the backend.
 type DriverConfig struct {
@@ -97,6 +68,7 @@ type HTTPConfig struct {
 	BearerToken    string
 	ChunkSize      int
 	TimeoutSeconds int
+	TLSConfig      *tls.Config `json:"-"` // mTLS: set RootCAs, GetClientCertificate, MinVersion
 }
 
 // PKCS11Config is for industrial HSMs via PKCS#11.
@@ -109,21 +81,66 @@ type PKCS11Config struct {
 	MaxSessions int    // default 4
 }
 
-// NewDriver creates a Driver for the selected backend.
-func NewDriver(cfg DriverConfig) (Driver, error) {
-	switch cfg.Backend {
-	case "http", "microcontroller", "mcu", "esp32":
+func init() {
+	// Register core backends via registry pattern (Factory). Vendor adapters self-register.
+	RegisterBackend("http", func(cfg DriverConfig, opts ...Option) (Driver, error) {
 		hCfg := hhttp.Config{
 			BaseURL:     cfg.HTTP.BaseURL,
 			BearerToken: cfg.HTTP.BearerToken,
 			ChunkSize:   cfg.HTTP.ChunkSize,
 			Timeout:     time.Duration(cfg.HTTP.TimeoutSeconds) * time.Second,
+			TLSConfig:   cfg.HTTP.TLSConfig,
 		}
 		if hCfg.Timeout == 0 {
 			hCfg.Timeout = 30 * time.Second
 		}
+		_ = applyOptions(opts...)
 		return NewHTTPDriver(hhttp.NewClient(hCfg)), nil
-	case "pkcs11":
+	})
+	RegisterBackend("microcontroller", func(cfg DriverConfig, opts ...Option) (Driver, error) {
+		hCfg := hhttp.Config{
+			BaseURL:     cfg.HTTP.BaseURL,
+			BearerToken: cfg.HTTP.BearerToken,
+			ChunkSize:   cfg.HTTP.ChunkSize,
+			Timeout:     time.Duration(cfg.HTTP.TimeoutSeconds) * time.Second,
+			TLSConfig:   cfg.HTTP.TLSConfig,
+		}
+		if hCfg.Timeout == 0 {
+			hCfg.Timeout = 30 * time.Second
+		}
+		_ = applyOptions(opts...)
+		return NewHTTPDriver(hhttp.NewClient(hCfg)), nil
+	})
+	RegisterBackend("mcu", func(cfg DriverConfig, opts ...Option) (Driver, error) {
+		hCfg := hhttp.Config{
+			BaseURL:     cfg.HTTP.BaseURL,
+			BearerToken: cfg.HTTP.BearerToken,
+			ChunkSize:   cfg.HTTP.ChunkSize,
+			Timeout:     time.Duration(cfg.HTTP.TimeoutSeconds) * time.Second,
+			TLSConfig:   cfg.HTTP.TLSConfig,
+		}
+		if hCfg.Timeout == 0 {
+			hCfg.Timeout = 30 * time.Second
+		}
+		_ = applyOptions(opts...)
+		return NewHTTPDriver(hhttp.NewClient(hCfg)), nil
+	})
+	RegisterBackend("esp32", func(cfg DriverConfig, opts ...Option) (Driver, error) {
+		hCfg := hhttp.Config{
+			BaseURL:     cfg.HTTP.BaseURL,
+			BearerToken: cfg.HTTP.BearerToken,
+			ChunkSize:   cfg.HTTP.ChunkSize,
+			Timeout:     time.Duration(cfg.HTTP.TimeoutSeconds) * time.Second,
+			TLSConfig:   cfg.HTTP.TLSConfig,
+		}
+		if hCfg.Timeout == 0 {
+			hCfg.Timeout = 30 * time.Second
+		}
+		_ = applyOptions(opts...)
+		return NewHTTPDriver(hhttp.NewClient(hCfg)), nil
+	})
+	RegisterBackend("pkcs11", func(cfg DriverConfig, opts ...Option) (Driver, error) {
+		_ = applyOptions(opts...)
 		pCfg := pkcs11.Config{
 			LibraryPath: cfg.PKCS11.LibraryPath,
 			SlotID:      cfg.PKCS11.SlotID,
@@ -132,7 +149,24 @@ func NewDriver(cfg DriverConfig) (Driver, error) {
 			MaxSessions: cfg.PKCS11.MaxSessions,
 		}
 		return NewPKCS11Driver(pCfg)
-	default:
-		return nil, fmt.Errorf("unknown backend %q: must be \"http\" or \"pkcs11\"", cfg.Backend)
+	})
+}
+
+// NewDriver creates a Driver via backend registry. Supports Options for production (logger, retry, metrics).
+// Validates config and wraps with middleware (logging/metrics/retry) for production.
+func NewDriver(cfg DriverConfig, opts ...Option) (Driver, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
+	o := applyOptions(opts...)
+	factory, ok := getFactory(cfg.Backend)
+	if !ok {
+		return nil, fmt.Errorf("%w: unknown backend %q (registered: %v)", ErrInvalidArgument, cfg.Backend, ListBackends())
+	}
+	d, err := factory(cfg, opts...)
+	if err != nil {
+		return nil, err
+	}
+	// Decorate with production middleware (logging/metrics/retry)
+	return wrapWithMiddleware(d, o), nil
 }

@@ -1,0 +1,23 @@
+services:
+  softhsm:
+    image: opendnssec/softhsm2:latest
+    environment:
+      SOFTHSM2_CONF: /etc/softhsm2.conf
+    volumes:
+      - softhsm_tokens:/var/lib/softhsm/tokens
+      - ./softhsm2.conf:/etc/softhsm2.conf:ro
+    command: ["softhsm2-util", "--show-slots"]
+  app:
+    build: .
+    environment:
+      PKCS11_LIB: /usr/lib/softhsm/libsofthsm2.so
+      PKCS11_TOKEN: test-token
+      PKCS11_PIN: "1234"
+      SOFTHSM2_CONF: /tmp/softhsm2.conf
+    depends_on:
+      - softhsm
+    volumes:
+      - ./examples:/examples
+
+volumes:
+  softhsm_tokens:

@@ -10,13 +10,12 @@ A production-ready Go client library for HSMs: microcontroller HTTP (ESP32/Raspb
 ## Features
 
 - **Backends**: `hsm/http` for microcontrollers (ESP32/Raspberry Pi/HTTP JSON) and `hsm/pkcs11` generic industrial; vendor adapters `hsm/yubihsm`, `hsm/luna`, `hsm/cloudhsm` for contradictions
-- **Generic Driver**: `hsm.Driver` interface + `hsm.NewDriver` + `crypto.Signer` support (no change to generic `hsm/pkcs11` when adapting vendors — interface+adapter)
+- **Generic Driver**: `hsm.Driver` interface + `hsm.NewDriver` registry + `crypto.Signer` (no change to generic when adapting)
 - **Key Generation**: ECDSA P-256/P-384/P-521, RSA 2048-4096, Ed25519 via PKCS#11; ECDSA P-256 via HTTP
 - **Signing**: File upload + sign (HTTP) or host-hash + sign digest (PKCS#11)
-- **Error Handling**: Comprehensive error handling with detailed error messages
-- **Context Support**: Full support for request cancellation and timeouts
-- **Concurrent Operations**: Safe for concurrent use (PKCS#11 session pool)
-- **Testing**: Comprehensive test suite with SoftHSM2 integration
+- **Production**: Sentinel errors `Err...`, `WithLogger`/`WithMetrics`/`WithRetry`, `Middleware` (logging/metrics/retry), `Validate()`, `Health()` probes, `SecureString` PIN, mTLS `TLSConfig`, `CircuitBreaker`/`RateLimiter`, `InMemoryMetrics`
+- **Ops**: Dockerfile (CGO), `docker-compose` SoftHSM, `cmd/hsm-cli`, `deploy/k8s` with Secret + probes
+- **Testing**: SoftHSM2 integration, `go test -race`, `SOFTHSM2_CONF`
 
 ## Installation
 
@@ -260,14 +259,37 @@ openssl dgst -sha256 -verify public.pem -signature signature.der file.dat
 
 Generic `hsm.Driver` (`GenerateKey`, `GetPublicKey`, `Sign(digest)`, `Signer() crypto.Signer`, `ListKeys`, `Info`, `Close`) works for all; vendor adapters wrap `hsm/pkcs11` without modifying it (interface+adapter for contradictions: YubiHSM PIN format, Luna PSS params/partition, CloudHSM CU/cluster sync). HTTP signs via file upload, PKCS#11 signs host-computed digest (single USB/network device, session pool).
 
+## Production Ready
+
+```go
+// Secure PIN from env, mTLS, validation, middleware, health
+pin := hsm.PINFromEnv() // HSM_PIN
+tokenLabel := os.Getenv("PKCS11_TOKEN")
+driver, err := hsm.NewDriver(hsm.DriverConfig{
+    Backend: "cloudhsm",
+    PKCS11: hsm.PKCS11Config{LibraryPath: "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so", TokenLabel: tokenLabel, PIN: string(pin)},
+}, hsm.WithLogger(slog.Default()), hsm.WithRetry(3, 200*time.Millisecond), hsm.WithMetrics(func(op string, d time.Duration, err error){ metrics.Observe(op,d,err)}))
+if err != nil { log.Fatal(err) }
+defer driver.Close()
+// Health for k8s probe
+status, _ := hsm.Health(ctx, driver, "cloudhsm") // slot, token, latency
+// Resilient wrapper for HA
+rcb := hsm.NewCircuitBreaker(5, 30*time.Second)
+rl := hsm.NewRateLimiter(10, 10)
+resilient := hsm.NewResilientDriver(driver, rcb, rl, 5*time.Second)
+// Ops: docker-compose up, cmd/hsm-cli -backend pkcs11 -action health
+```
+
+See `Dockerfile`, `docker-compose.yml` (SoftHSM), `softhsm2.conf`, `cmd/hsm-cli`, `deploy/k8s/deployment.yaml` (Secret for PIN, liveness/readiness).
+
 ## Implementation Details
 
-- **HTTP Chunk Size**: Maximum upload chunk is 8 KiB (configurable, but microcontroller limits to 32 KiB total)
-- **HTTP Authentication**: Bearer token in Authorization header
-- **PKCS#11 Authentication**: Slot `PIN` + `TokenLabel`/`SlotID` + `LibraryPath` (mTLS for network HSMs)
+- **HTTP Chunk Size**: 8 KiB (mTLS via `http.Config.TLSConfig` / `DriverConfig.HTTP.TLSConfig`)
+- **HTTP Authentication**: Bearer token (via `hsm.BearerTokenFromEnv`, `SecureString`, `Redact`) + mTLS
+- **PKCS#11 Authentication**: `PIN` via `hsm.PINFromEnv` (`SecureString`), `TokenLabel`/`SlotID`/`LibraryPath`
 - **Protocols**: HTTP/HTTPS (microcontroller) / PKCS#11 (industrial)
-- **Encoding**: Base64 for binary data, JSON for all messages (HTTP)
-- **Thread-safe**: Safe for concurrent goroutines (session pool for PKCS#11)
+- **Encoding**: Base64, JSON (HTTP)
+- **Thread-safe**: Session pool + `CircuitBreaker`/`RateLimiter` + retry middleware
 
 ## Debugging
 
